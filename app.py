@@ -2570,32 +2570,68 @@ with tab2:
             st.info("입고수량 원본 데이터가 없습니다.")
 
 with tab3:
-    st.write("분기 내 일자별 누적 출고량 추이")
-    daily = in_f.dropna(subset=["이동일자"]).groupby("이동일자", as_index=True)["출고수량_EA"].sum().sort_index().cumsum()
-    trend_export_df = pd.DataFrame(columns=["일자", "누적출고(EA)", "요청수량(PACK)"])
-    if daily.empty:
+    trend_options = ["일별", "주별", "월별"]
+    if "trend_granularity" not in st.session_state:
+        st.session_state["trend_granularity"] = "일별"
+    for option in trend_options:
+        state_key = f"trend_granularity_{option}"
+        if state_key not in st.session_state:
+            st.session_state[state_key] = (option == st.session_state["trend_granularity"])
+
+    def _set_trend_granularity(selected_option: str) -> None:
+        st.session_state["trend_granularity"] = selected_option
+        for opt in trend_options:
+            st.session_state[f"trend_granularity_{opt}"] = (opt == selected_option)
+
+    selector_wrap_col, _ = st.columns([1.8, 8.2])
+    with selector_wrap_col:
+        g_col1, g_col2, g_col3 = st.columns(3, gap="small")
+        with g_col1:
+            st.checkbox("일별", key="trend_granularity_일별", on_change=_set_trend_granularity, args=("일별",))
+        with g_col2:
+            st.checkbox("주별", key="trend_granularity_주별", on_change=_set_trend_granularity, args=("주별",))
+        with g_col3:
+            st.checkbox("월별", key="trend_granularity_월별", on_change=_set_trend_granularity, args=("월별",))
+
+    selected_granularity = st.session_state.get("trend_granularity", "일별")
+
+    trend_base = in_f.dropna(subset=["이동일자"]).copy()
+    if selected_granularity == "주별":
+        trend_base["집계일"] = trend_base["이동일자"].dt.to_period("W-SUN").dt.start_time
+        period_col_name = "주차"
+        x_axis_title = "주차(월요일 시작)"
+    elif selected_granularity == "월별":
+        trend_base["집계일"] = trend_base["이동일자"].dt.to_period("M").dt.to_timestamp()
+        period_col_name = "월"
+        x_axis_title = "월"
+    else:
+        trend_base["집계일"] = trend_base["이동일자"].dt.normalize()
+        period_col_name = "일자"
+        x_axis_title = "이동일자"
+
+    cumulative = trend_base.groupby("집계일", as_index=True)["출고수량_EA"].sum().sort_index().cumsum()
+    trend_export_df = pd.DataFrame(columns=[period_col_name, "누적출고(EA)", "요청수량(PACK)"])
+    if cumulative.empty:
         st.info("표시할 이동일자 데이터가 없습니다.")
     else:
-        trend_df = pd.DataFrame({"누적출고(EA)": daily})
+        trend_df = pd.DataFrame({"누적출고(EA)": cumulative})
         if total_req > 0:
             trend_df["요청수량(PACK)"] = total_req
-        trend_reset = trend_df.reset_index()
-        date_col = trend_reset.columns[0]
-        trend_reset = trend_reset.rename(columns={date_col: "일자"})
+        trend_reset = trend_df.reset_index().rename(columns={"집계일": period_col_name})
         trend_export_df = trend_reset.copy()
-        trend_long = trend_reset.melt(id_vars="일자", var_name="구분", value_name="수량")
+        trend_long = trend_reset.melt(id_vars=period_col_name, var_name="구분", value_name="수량")
 
         line = alt.Chart(trend_long).mark_line(point=True).encode(
-            x=alt.X("일자:T", title="이동일자"),
+            x=alt.X(f"{period_col_name}:T", title=x_axis_title),
             y=alt.Y("수량:Q", title="수량"),
             color=alt.Color("구분:N", title="지표"),
             tooltip=[
-                alt.Tooltip("일자:T", title="일자"),
+                alt.Tooltip(f"{period_col_name}:T", title=period_col_name),
                 alt.Tooltip("구분:N", title="지표"),
                 alt.Tooltip("수량:Q", title="수량", format=","),
             ],
         )
-        last_points = trend_long.sort_values("일자").groupby("구분", as_index=False).tail(1)
+        last_points = trend_long.sort_values(period_col_name).groupby("구분", as_index=False).tail(1)
         labels = alt.Chart(last_points).mark_text(
             dx=6,
             align="left",
@@ -2603,7 +2639,7 @@ with tab3:
             fontSize=14,
             fontWeight="bold",
         ).encode(
-            x=alt.X("일자:T"),
+            x=alt.X(f"{period_col_name}:T"),
             y=alt.Y("수량:Q"),
             color=alt.Color("구분:N", legend=None),
             text=alt.Text("수량:Q", format=","),
