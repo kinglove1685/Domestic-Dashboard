@@ -2111,7 +2111,7 @@ with tab1:
         in_f,
     )
     yymmdd = datetime.now().strftime("%y%m%d")
-    dl_col1, dl_col2 = st.columns(2)
+    dl_col1, dl_col2, _ = st.columns([0.8, 1, 4.2])
     with dl_col1:
         st.download_button(
             "제품명코드 요약 엑셀 다운로드",
@@ -2600,14 +2600,28 @@ with tab3:
         trend_base["집계일"] = trend_base["이동일자"].dt.to_period("W-SUN").dt.start_time
         period_col_name = "주차"
         x_axis_title = "주차(월요일 시작)"
+        axis_format = "%Y년 %m월 %d일"
+        tooltip_date_format = "%Y년 %m월 %d일"
+        x_axis_config = alt.Axis(format=axis_format, labelAngle=-25)
     elif selected_granularity == "월별":
         trend_base["집계일"] = trend_base["이동일자"].dt.to_period("M").dt.to_timestamp()
         period_col_name = "월"
         x_axis_title = "월"
+        axis_format = "%Y년 %m월"
+        tooltip_date_format = "%Y년 %m월"
+        x_axis_config = alt.Axis(format=axis_format, labelAngle=0)
     else:
         trend_base["집계일"] = trend_base["이동일자"].dt.normalize()
         period_col_name = "일자"
         x_axis_title = "이동일자"
+        axis_format = "%m월 %d일"
+        tooltip_date_format = "%Y년 %m월 %d일"
+        x_axis_config = alt.Axis(
+            format=axis_format,
+            labelAngle=-35,
+            labelOverlap=False,
+            tickCount={"interval": "day", "step": 1},
+        )
 
     cumulative = trend_base.groupby("집계일", as_index=True)["출고수량_EA"].sum().sort_index().cumsum()
     trend_export_df = pd.DataFrame(columns=[period_col_name, "누적출고(EA)", "요청수량(PACK)"])
@@ -2622,11 +2636,11 @@ with tab3:
         trend_long = trend_reset.melt(id_vars=period_col_name, var_name="구분", value_name="수량")
 
         line = alt.Chart(trend_long).mark_line(point=True).encode(
-            x=alt.X(f"{period_col_name}:T", title=x_axis_title),
+            x=alt.X(f"{period_col_name}:T", title=x_axis_title, axis=x_axis_config),
             y=alt.Y("수량:Q", title="수량"),
             color=alt.Color("구분:N", title="지표"),
             tooltip=[
-                alt.Tooltip(f"{period_col_name}:T", title=period_col_name),
+                alt.Tooltip(f"{period_col_name}:T", title=period_col_name, format=tooltip_date_format),
                 alt.Tooltip("구분:N", title="지표"),
                 alt.Tooltip("수량:Q", title="수량", format=","),
             ],
