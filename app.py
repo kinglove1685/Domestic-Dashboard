@@ -16,8 +16,13 @@ from openpyxl.utils import get_column_letter
 
 
 st.set_page_config(page_title="국내영업 생산요청 vs 출고 관리 TEST", layout="wide")
-st.title("국내영업 생산요청 대비 출고 관리 TEST")
-st.caption("기준: 품목코드 앞 4자리(예: S129) 동일 시 1 EA = 1 PACK, 분기 누적 출고 집계")
+header_left, header_right = st.columns([6, 2])
+with header_left:
+    st.title("국내영업 생산요청 대비 출고 관리 TEST")
+    st.caption("기준: 품목코드 앞 4자리(예: S129) 동일 시 1 EA = 1 PACK, 분기 누적 출고 집계")
+with header_right:
+    st.markdown("<div style='height: 0.45rem;'></div>", unsafe_allow_html=True)
+    pack_plan_download_slot = st.empty()
 st.markdown(
     """
     <style>
@@ -1986,14 +1991,13 @@ pack_plan_data = to_master_pack_plan_excel_bytes(
     in_f,
 )
 yymmdd = datetime.now().strftime("%y%m%d")
-_, header_action_right = st.columns([6, 2])
-with header_action_right:
+with pack_plan_download_slot:
     st.download_button(
         "포장계획 엑셀 다운로드",
         data=pack_plan_data,
         file_name=f"포장계획_{yymmdd}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
+        key="pack_plan_download_header",
     )
 
 metric_cols = st.columns(10 if show_unified_inventory_kpi else 8)
