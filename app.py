@@ -1968,6 +1968,34 @@ if show_unified_inventory_kpi:
     total_stock_qty = float(family_kpi["재고반영수량"].sum())
     total_real_shortage = float(family_kpi["실제부족량"].sum())
 
+inventory_stock_map_for_pack_plan, _ = load_inventory_stock(".")
+inventory_stock_dict_for_pack_plan = (
+    inventory_stock_map_for_pack_plan.set_index("제품코드(마스터)")["보유재고"].to_dict()
+    if not inventory_stock_map_for_pack_plan.empty
+    else {}
+)
+pcode_stock_totals_for_pack_plan = build_pcode_stock_totals(item, inventory_stock_dict_for_pack_plan)
+pcode_detail_map_for_pack_plan = build_pcode_detail_map(family)
+pack_plan_data = to_master_pack_plan_excel_bytes(
+    prod,
+    pcode_stock_totals_for_pack_plan,
+    pcode_detail_map_for_pack_plan,
+    req_f,
+    item,
+    inventory_stock_dict_for_pack_plan,
+    in_f,
+)
+yymmdd = datetime.now().strftime("%y%m%d")
+_, header_action_right = st.columns([6, 2])
+with header_action_right:
+    st.download_button(
+        "포장계획 엑셀 다운로드",
+        data=pack_plan_data,
+        file_name=f"포장계획_{yymmdd}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
+
 metric_cols = st.columns(10 if show_unified_inventory_kpi else 8)
 metric_cols[0].metric("요청수량 (PACK)", f"{total_req:,.0f}")
 metric_cols[1].metric("매칭출고수량 (PACK)", f"{total_ship_matched:,.0f}")
@@ -2093,37 +2121,12 @@ with tab1:
         },
     )
     excel_data_prod = to_excel_bytes(prod_view[prod_cols], sheet_name="제품코드요약")
-    inventory_stock_map_for_pack_plan, _ = load_inventory_stock(".")
-    inventory_stock_dict_for_pack_plan = (
-        inventory_stock_map_for_pack_plan.set_index("제품코드(마스터)")["보유재고"].to_dict()
-        if not inventory_stock_map_for_pack_plan.empty
-        else {}
-    )
-    pcode_stock_totals_for_pack_plan = build_pcode_stock_totals(item, inventory_stock_dict_for_pack_plan)
-    pcode_detail_map_for_pack_plan = build_pcode_detail_map(family)
-    pack_plan_data = to_master_pack_plan_excel_bytes(
-        prod,
-        pcode_stock_totals_for_pack_plan,
-        pcode_detail_map_for_pack_plan,
-        req_f,
-        item,
-        inventory_stock_dict_for_pack_plan,
-        in_f,
-    )
-    yymmdd = datetime.now().strftime("%y%m%d")
-    dl_col1, dl_col2, _ = st.columns([0.8, 1, 4.2])
+    dl_col1, _ = st.columns([0.8, 5.2])
     with dl_col1:
         st.download_button(
             "제품명코드 요약 엑셀 다운로드",
             data=excel_data_prod,
             file_name="제품명코드_요약_요청대비출고.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-    with dl_col2:
-        st.download_button(
-            "포장계획 엑셀 다운로드",
-            data=pack_plan_data,
-            file_name=f"포장계획_{yymmdd}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
